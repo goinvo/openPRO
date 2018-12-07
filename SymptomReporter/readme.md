@@ -1,4 +1,4 @@
-# Symptom Identifier
+# Symptom Reporter
 “Patient-owned” application that captures a subjective nebulous idea of symptoms and creates a structured collection of data that can be conveniently and consistently shared with clinicians in person, via email/text, and via the Medical Record..
 
 ## Purpose/Goals
