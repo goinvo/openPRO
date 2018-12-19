@@ -7,9 +7,9 @@ Smart speaker application that provides a Voice enabled method to submit respons
   - Common commands are supported directly
      - I took my medicine
      - I took 2 pills
-     I forgot my medicine today
-     I got 5 hours sleep
-     My pain is a 6
+     - I forgot my medicine today
+     - I got 5 hours sleep
+     - My pain is a 6
   - Delivers audio report
   - Requests to send data on scheduled reporting frequency
 - Simple visual
