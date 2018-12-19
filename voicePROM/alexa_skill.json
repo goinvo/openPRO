@@ -10,6 +10,22 @@
                 {
                     "name": "AMAZON.CancelIntent",
                     "samples": [
+                        "undo",
+                        "never mind",
+                        "forget that",
+                        "cancel",
+                        "thats not right",
+                        "lets fix that",
+                        "redo that one"
+                    ]
+                },
+                {
+                    "name": "AMAZON.HelpIntent",
+                    "samples": []
+                },
+                {
+                    "name": "AMAZON.StopIntent",
+                    "samples": [
                         "okay",
                         "thank you",
                         "thatll do it",
@@ -19,14 +35,6 @@
                         "all done",
                         "thats all"
                     ]
-                },
-                {
-                    "name": "AMAZON.HelpIntent",
-                    "samples": []
-                },
-                {
-                    "name": "AMAZON.StopIntent",
-                    "samples": []
                 },
                 {
                     "name": "AMAZON.NavigateHomeIntent",
@@ -56,24 +64,35 @@
                     "name": "sleep_report",
                     "slots": [
                         {
-                            "name": "sleep_duration",
-                            "type": "AMAZON.DURATION",
+                            "name": "sleep_duration_hours",
+                            "type": "AMAZON.NUMBER",
                             "samples": [
-                                "it was {sleep_duration}",
-                                "for {sleep_duration}",
-                                "about {sleep_duration}",
-                                "I slept for {sleep_duration}",
-                                "{sleep_duration}"
+                                "{sleep_duration_hours} hours and {sleep_duration_minutes} minutes",
+                                "{sleep_duration_hours} and {sleep_duration_fraction} hours",
+                                "for {sleep_duration_hours} hours",
+                                "about {sleep_duration_hours} hours",
+                                "{sleep_duration_hours} hours"
                             ]
+                        },
+                        {
+                            "name": "sleep_duration_fraction",
+                            "type": "common_fraction"
+                        },
+                        {
+                            "name": "sleep_duration_minutes",
+                            "type": "AMAZON.NUMBER"
                         }
                     ],
                     "samples": [
-                        "last night I slept for {sleep_duration}",
-                        "I think I slept for {sleep_duration}",
-                        "I was asleep for {sleep_duration}",
+                        "slept {sleep_duration_hours} hours {sleep_duration_minutes} minutes",
+                        "slept {sleep_duration_hours} hour",
+                        "slept  {sleep_duration_hours} hours and {sleep_duration_minutes} minutes",
+                        "slept  {sleep_duration_hours} and {sleep_duration_fraction} hours",
+                        "ill report my sleep",
+                        "id like to report my sleep",
                         "I slept",
-                        "i slept for {sleep_duration}",
-                        "I slept {sleep_duration} "
+                        "i slept for {sleep_duration_hours} hours",
+                        "I slept {sleep_duration_hours} hours"
                     ]
                 },
                 {
@@ -81,7 +100,14 @@
                     "slots": [
                         {
                             "name": "medication",
-                            "type": "medicationType"
+                            "type": "medicationType",
+                            "samples": [
+                                "sorry {medication}",
+                                "i took {medication}",
+                                "its {medication}",
+                                "{medication}",
+                                "It was {medication} "
+                            ]
                         },
                         {
                             "name": "medicationB",
@@ -93,6 +119,13 @@
                         }
                     ],
                     "samples": [
+                        "took my {medication} {medicationB} and my {medicationC}",
+                        "i did the {medication} ",
+                        "took my {medication} and my {medicationB}",
+                        "took my {medication}",
+                        "i just took something",
+                        "i took a medicine",
+                        "i took one medicine",
                         "I took a pill",
                         "I took some medicine",
                         "I just took {medication} {medicationB} and {medicationC}",
@@ -103,6 +136,33 @@
                         "I took my {medication}",
                         "I took {medication}"
                     ]
+                },
+                {
+                    "name": "AMAZON.StartOverIntent",
+                    "samples": [
+                        "lets start over",
+                        "clear the data"
+                    ]
+                },
+                {
+                    "name": "review_all_data",
+                    "slots": [],
+                    "samples": [
+                        "what are we sending",
+                        "what do we have",
+                        "what do you have",
+                        "lets review",
+                        "review",
+                        "what have we got"
+                    ]
+                },
+                {
+                    "name": "AMAZON.YesIntent",
+                    "samples": []
+                },
+                {
+                    "name": "AMAZON.NoIntent",
+                    "samples": []
                 }
             ],
             "types": [
@@ -8703,6 +8763,39 @@
                             }
                         }
                     ]
+                },
+                {
+                    "name": "common_fraction",
+                    "values": [
+                        {
+                            "id": "0.75",
+                            "name": {
+                                "value": "three quarters",
+                                "synonyms": [
+                                    "3/4"
+                                ]
+                            }
+                        },
+                        {
+                            "id": "0.5",
+                            "name": {
+                                "value": "one half",
+                                "synonyms": [
+                                    "a half"
+                                ]
+                            }
+                        },
+                        {
+                            "id": "0.25",
+                            "name": {
+                                "value": "one quarter",
+                                "synonyms": [
+                                    "a quarter",
+                                    "1/4"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -8714,13 +8807,40 @@
                     "prompts": {},
                     "slots": [
                         {
-                            "name": "sleep_duration",
-                            "type": "AMAZON.DURATION",
+                            "name": "sleep_duration_hours",
+                            "type": "AMAZON.NUMBER",
                             "confirmationRequired": false,
                             "elicitationRequired": true,
                             "prompts": {
                                 "elicitation": "Elicit.Slot.905051359708.1063830930912"
                             }
+                        },
+                        {
+                            "name": "sleep_duration_fraction",
+                            "type": "common_fraction",
+                            "confirmationRequired": false,
+                            "elicitationRequired": false,
+                            "prompts": {},
+                            "validations": [
+                                {
+                                    "type": "hasEntityResolutionMatch",
+                                    "prompt": "Slot.Validation.224339533322.1039612325015.499409973140"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "sleep_duration_minutes",
+                            "type": "AMAZON.NUMBER",
+                            "confirmationRequired": false,
+                            "elicitationRequired": false,
+                            "prompts": {},
+                            "validations": [
+                                {
+                                    "type": "isLessThanOrEqualTo",
+                                    "prompt": "Slot.Validation.582523893027.908971570717.798233118355",
+                                    "value": "1000"
+                                }
+                            ]
                         }
                     ]
                 },
@@ -8733,22 +8853,42 @@
                             "name": "medication",
                             "type": "medicationType",
                             "confirmationRequired": false,
-                            "elicitationRequired": false,
-                            "prompts": {}
+                            "elicitationRequired": true,
+                            "prompts": {
+                                "elicitation": "Elicit.Slot.1010765234753.1207988889119"
+                            },
+                            "validations": [
+                                {
+                                    "type": "hasEntityResolutionMatch",
+                                    "prompt": "Slot.Validation.1244949824833.202593997271.1111929932590"
+                                }
+                            ]
                         },
                         {
                             "name": "medicationB",
                             "type": "medicationType",
                             "confirmationRequired": false,
                             "elicitationRequired": false,
-                            "prompts": {}
+                            "prompts": {},
+                            "validations": [
+                                {
+                                    "type": "hasEntityResolutionMatch",
+                                    "prompt": "Slot.Validation.1244949824833.861618757523.1270523198838"
+                                }
+                            ]
                         },
                         {
                             "name": "medicationC",
                             "type": "medicationType",
                             "confirmationRequired": false,
                             "elicitationRequired": false,
-                            "prompts": {}
+                            "prompts": {},
+                            "validations": [
+                                {
+                                    "type": "hasEntityResolutionMatch",
+                                    "prompt": "Slot.Validation.1244949824833.1514886891062.220961354097"
+                                }
+                            ]
                         }
                     ]
                 }
@@ -8769,7 +8909,61 @@
                 "variations": [
                     {
                         "type": "PlainText",
-                        "value": "For how long?"
+                        "value": "How long did you sleep?"
+                    }
+                ]
+            },
+            {
+                "id": "Slot.Validation.1244949824833.202593997271.1111929932590",
+                "variations": [
+                    {
+                        "type": "PlainText",
+                        "value": "I'm not familiar with {medication} . Try a synonym perhaps."
+                    }
+                ]
+            },
+            {
+                "id": "Slot.Validation.1244949824833.861618757523.1270523198838",
+                "variations": [
+                    {
+                        "type": "PlainText",
+                        "value": "I'm not familiar with {medicationB} , does it have another name?"
+                    }
+                ]
+            },
+            {
+                "id": "Slot.Validation.1244949824833.1514886891062.220961354097",
+                "variations": [
+                    {
+                        "type": "PlainText",
+                        "value": "I'm not familiar with {medicationC} , perhaps theres anohter name?"
+                    }
+                ]
+            },
+            {
+                "id": "Elicit.Slot.1010765234753.1207988889119",
+                "variations": [
+                    {
+                        "type": "PlainText",
+                        "value": "I didn't hear a medicine. What did you take?"
+                    }
+                ]
+            },
+            {
+                "id": "Slot.Validation.224339533322.1039612325015.499409973140",
+                "variations": [
+                    {
+                        "type": "PlainText",
+                        "value": "I heard {sleep_duration_fraction} hours. I only understand quarters."
+                    }
+                ]
+            },
+            {
+                "id": "Slot.Validation.582523893027.908971570717.798233118355",
+                "variations": [
+                    {
+                        "type": "PlainText",
+                        "value": "Thats a lot of minutes. please use hours and minutes."
                     }
                 ]
             }
