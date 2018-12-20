@@ -4,15 +4,27 @@
 
 
 const Alexa = require('ask-sdk');
+const awsSDK = require('aws-sdk');
+const promisify = require('es6-promisify');
 var https = require('https');
+var uuid = require('uuid');
+
+// Generate a v1 (time-based) id
+//uuid.v1(); // -> '6c84fb90-12c4-11e1-840d-7b25c5ee775a'
+
+const docClient = new awsSDK.DynamoDB.DocumentClient();
 
 
-const SKILL_NAME = 'voice-PRO';
+const SKILL_NAME = "voice <say-as interpret-as='spell-out'>pro</say-as>";
 const FALLBACK_MESSAGE = `The ${SKILL_NAME} skill can't help you with that. Ask for help if you need it`;
 const WELCOME_MESSAGE = `Welcome to ${SKILL_NAME}.`;
 const WRONG_TIME_MESSAGE = 'Im confused. Try again.';
+const ABOUT_TEXT = `${SKILL_NAME} is the voice first interface for the open source project, open <say-as interpret-as='spell-out'>pro</say-as>. Find us on git hub.`;
 const HELP_TEXT = 'Help text';
 const REPROMPT_TO_CONTINUE = 'anything else?';
+
+const USER_TABLE = 'voicePRO_users';  //hash:'user_id', 'reports', 'email', 'alerts', 'questionnaires'
+const REPORTS_TABLE = 'voicePRO_reports';  //hash:'uuid', 'date', 'user_id', 'content'
 
 
 /////////////////////////////
@@ -20,7 +32,7 @@ const REPROMPT_TO_CONTINUE = 'anything else?';
 /////////////////////////////
 
 // pass in a function that takes the userinfo object as argument
-function getUserInfoFromToken(token, callback){
+function applyUserInfoFromToken(token, callback){
   var options = {
       //url: 'https://voice-pro.auth.us-east-1.amazoncognito.com/oauth2/userInfo',
       host: 'voice-pro.auth.us-east-1.amazoncognito.com',
@@ -54,24 +66,20 @@ function getUserInfoFromToken(token, callback){
     }
   });
   req.end();
-  
 }
 
-function initializeSession(handlerInput){
-  const attributesManager = handlerInput.attributesManager;
-  const attributes = attributesManager.getSessionAttributes();
-  
-  /// first make an empty set of attributes
+function getDefaultAttributes(){
+  const attributes = {};
   attributes.state = {};
   attributes.data = {};
   attributes.user = {};
   
-  attributes.user.name = '';
   attributes.user.linked = false;
   attributes.user.token = '';
   attributes.user.email = '';
+  attributes.user.username = ''; 
+  attributes.user.systemuserid = '';
   
-  attributes.state.newsession = true;
   attributes.state.exitType = 'hard';
   attributes.state.cancelAction = 'exit';
   attributes.state.lastMeds = [];
@@ -80,57 +88,88 @@ function initializeSession(handlerInput){
   attributes.data.allmedstaken = false;
   attributes.data.medstaken = [];
   attributes.data.sleepduration = 0;
-  
-  /// now populate attributes from server if available
-  var accessToken = handlerInput.requestEnvelope.context.System.user.accessToken;
-  if (accessToken === undefined){
-    console.log('no token');
-    attributes.user.linked = false;
-    
-    attributesManager.setSessionAttributes(attributes);
-    return attributes;
-  }
-  else{
-    attributes.user.token = accessToken;
-    attributes.user.name = handlerInput.requestEnvelope.context.System.user.userId;
-    console.log('token: ' + accessToken);
-    console.log('user: ' + attributes.user.name);
-    
-    //getUserInfoFromToken(accessToken);
-    
-    return new Promise((resolve) => {
-      getUserInfoFromToken(accessToken, (userinfo) =>{
-        var email = userinfo.email;
-        console.log(email);
-        if (!email || email.length==0){
-          attributes.user.linked = false;
-          console.log('no email found, unlinked');
-        }
-        else {
-          attributes.user.linked = true;
-          attributes.user.email = email; 
-          console.log('email found, linked');
-        }
-        attributesManager.setSessionAttributes(attributes);
-        console.log('resolving');
-        resolve(attributes);
-      });
-    });
-    
-  }
+  attributes.data.questionnaires = [];
+  return attributes; 
 }
 
-function getAttributes(handlerInput){
+// returns another promise
+function attributesFromDB(attributes){
+  const getUserTableParams = {
+    TableName: USER_TABLE,
+    Key: {
+      'user_id': attributes.user.username
+    }
+  }
+  
+
+}
+
+
+// All functions that use data are passed through this function.
+// processFunction takes attributes as its only argument.
+// If the session is new, we confirm the user is linked, we set up their session
+// attributes, grab their data if it exists (or create a new entry), and pass back
+// back the function as a resolve to a promise.
+// If the user is not linked, create a link request response.
+// If the session is old, simply return processFunction(attributes);
+function applyAttributes(handlerInput, processFunction, forceReinitialization = false){
   const attributesManager = handlerInput.attributesManager;
-  var attributes = attributesManager.getSessionAttributes();
-  if (Object.keys(attributes).length === 0) {
-    attributes = initializeSession(handlerInput);
+  if(handlerInput.requestEnvelope.session.new || forceReinitialization){
+    // session is new, check for an access token
+    var accessToken = handlerInput.requestEnvelope.context.System.user.accessToken;
+    
+    var speechText = 'You must authenticate and link to use this skill';
+    const noaccountreply = handlerInput.responseBuilder
+        .speak(speechText)
+        .withLinkAccountCard()
+        .getResponse();
+    
+    if (accessToken === undefined){
+      // no access token, send them packing!
+      console.log('no token');
+      return noaccountreply;
+    }
+    else{
+      // they have a good access token. now initialize the session.
+      // 1. set up attributes
+      const attributes = getDefaultAttributes();
+      attributes.user.token = accessToken;
+      attributes.user.systemuserid = handlerInput.requestEnvelope.context.System.user.userId;
+      console.log('token: ' + accessToken);
+      console.log('user: ' + attributes.user.systemuserid);
+      
+      // 2. get the email from authentication server
+      var promise = new Promise((resolve) => {
+        applyUserInfoFromToken(accessToken, (userinfo) =>{
+          var email = userinfo.email;
+          var username = userinfo.username;
+          if (!email || email.length==0){
+            attributes.user.linked = false;
+            console.log('no email found, unlinked');
+            resolve(noaccountreply);
+          }
+          else {
+            console.log(email);
+            attributes.user.linked = true;
+            attributes.user.email = email; 
+            attributes.user.username = username;
+            console.log('email found, linked');
+            attributesManager.setSessionAttributes(attributes);
+            resolve(processFunction(attributes));
+          }
+        });
+      });
+      // 3. get additional data from database and chain to promise
+     
+     
+      return promise;
+      
+    }
   }
   else{
-    attributes.state.newsession = false;
-  } 
-  console.log('returning from get attributes');
-  return attributes;
+    var attributes = attributesManager.getSessionAttributes();
+    return processFunction(attributes);
+  }
 }
 
 const LaunchRequest = {
@@ -138,20 +177,23 @@ const LaunchRequest = {
     return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
   },
   handle(handlerInput) {
-    const responseBuilder = handlerInput.responseBuilder;
-    const attributes = getAttributes(handlerInput);
-    
-    const speechOutput = WELCOME_MESSAGE;
-    const reprompt = 'Say help if you would like assistance';
-    return responseBuilder
-      .speak(speechOutput)
-      .withSimpleCard('Welcome!', 'To send your data, just say thank you or all done')
-      .reprompt(reprompt)
-      .reprompt(REPROMPT_TO_CONTINUE)
-      .withShouldEndSession(false)
-      .getResponse();
+    var processFunc = () => {
+      const responseBuilder = handlerInput.responseBuilder;
+      const speechOutput = WELCOME_MESSAGE;
+      const reprompt = 'Say help if you would like assistance';
+      return responseBuilder
+        .speak(speechOutput)
+        .withSimpleCard('Welcome!', 'To send your data, just say thank you or all done')
+        .reprompt(reprompt)
+        .reprompt(REPROMPT_TO_CONTINUE)
+        .withShouldEndSession(false)
+        .getResponse();
+    };
+    return applyAttributes(handlerInput, processFunc);
   },
 };
+
+
 
 
 /////////////////////////////
@@ -164,22 +206,23 @@ const AllMedicationsTaken = {
     return request.type === 'IntentRequest' && request.intent.name === 'all_medications_taken';
   },
   handle(handlerInput){
-    const attributes = getAttributes(handlerInput);
-    
-    attributes.data.allmedstaken = true;
-    attributes.state.cancelAction = 'allmeds';
-    attributes.state.confirmUndo = 'false';
-
-    const attributesManager = handlerInput.attributesManager;
-    attributesManager.setSessionAttributes(attributes);
-    const speechText = 'Okay!';
-    
-    return handlerInput.responseBuilder
-      .speak(speechText)
-      .reprompt(REPROMPT_TO_CONTINUE)
-      .withSimpleCard('Medication taken', 'Ive recorded that you took all your medication. Good work!')
-      .withShouldEndSession(false)
-      .getResponse();
+    var processFunc = (attributes) => {
+      attributes.data.allmedstaken = true;
+      attributes.state.cancelAction = 'allmeds';
+      attributes.state.confirmUndo = 'false';
+  
+      const attributesManager = handlerInput.attributesManager;
+      attributesManager.setSessionAttributes(attributes);
+      const speechText = 'Okay!';
+      
+      return handlerInput.responseBuilder
+        .speak(speechText)
+        .reprompt(REPROMPT_TO_CONTINUE)
+        .withSimpleCard('Medication taken', 'Ive recorded that you took all your medication. Good work!')
+        .withShouldEndSession(false)
+        .getResponse();
+    };
+    return applyAttributes(handlerInput, processFunc);
   }
 };
 
@@ -189,45 +232,48 @@ const SleepReport = {
     return request.type === 'IntentRequest' && request.intent.name === 'sleep_report';
   },
   handle(handlerInput){
-    const attributes = getAttributes(handlerInput);
-    const request = handlerInput.requestEnvelope.request;
+    var processFunc = (attributes) =>{
+      const request = handlerInput.requestEnvelope.request;
     
-    const duration_hours = request.intent.slots.sleep_duration_hours.value;
-    if (!duration_hours){
-      attributes.state.cancelAction = 'abort';
-      const attributesManager = handlerInput.attributesManager;
-      attributesManager.setSessionAttributes(attributes);
-      
-      return handlerInput.responseBuilder.addDelegateDirective().getResponse();
-    }
-    else{
-      var sleep_hours = parseInt(duration_hours,10);
-      const duration_minutes = request.intent.slots.sleep_duration_minutes.value;
-      if (duration_minutes) sleep_hours += parseInt(duration_minutes,10)/60.0;
-      const fraction_resolutions = request.intent.slots.sleep_duration_fraction.resolutions;
-      if (fraction_resolutions){
-        const res = fraction_resolutions.resolutionsPerAuthority[0];
-        console.log(res);
-
-        const valueid = parseFloat(res.values[0].value.id);
-        sleep_hours += valueid;
-        console.log(sleep_hours);
+      const duration_hours = request.intent.slots.sleep_duration_hours.value;
+      if (!duration_hours){
+        attributes.state.cancelAction = 'abort';
+        const attributesManager = handlerInput.attributesManager;
+        attributesManager.setSessionAttributes(attributes);
+        
+        return handlerInput.responseBuilder.addDelegateDirective().getResponse();
       }
-      attributes.data.sleepduration = sleep_hours;
-      attributes.state.cancelAction = 'sleep';
-      attributes.state.confirmUndo = 'false';
-
-      const attributesManager = handlerInput.attributesManager;
-      attributesManager.setSessionAttributes(attributes);
-      const speechText = 'Got your sleep';
-      
-      return handlerInput.responseBuilder
-        .speak(speechText)
-        .withSimpleCard('Sleep Report', 'You slept '+ sleep_hours + ' hours')
-        .reprompt(REPROMPT_TO_CONTINUE)
-        .withShouldEndSession(false)
-        .getResponse();
-    }
+      else{
+        var sleep_hours = parseInt(duration_hours,10);
+        const duration_minutes = request.intent.slots.sleep_duration_minutes.value;
+        if (duration_minutes) sleep_hours += parseInt(duration_minutes,10)/60.0;
+        const fraction_resolutions = request.intent.slots.sleep_duration_fraction.resolutions;
+        if (fraction_resolutions){
+          const res = fraction_resolutions.resolutionsPerAuthority[0];
+          console.log(res);
+  
+          const valueid = parseFloat(res.values[0].value.id);
+          sleep_hours += valueid;
+          console.log(sleep_hours);
+        }
+        attributes.data.sleepduration = sleep_hours;
+        attributes.state.cancelAction = 'sleep';
+        attributes.state.confirmUndo = 'false';
+  
+        const attributesManager = handlerInput.attributesManager;
+        attributesManager.setSessionAttributes(attributes);
+        const speechText = 'Got your sleep';
+        
+        return handlerInput.responseBuilder
+          .speak(speechText)
+          .withSimpleCard('Sleep Report', 'You slept '+ sleep_hours + ' hours')
+          .reprompt(REPROMPT_TO_CONTINUE)
+          .withShouldEndSession(false)
+          .getResponse();
+      }
+    };
+    
+    return applyAttributes(handlerInput, processFunc);
   }
 };
 
@@ -237,61 +283,67 @@ const SomeMedicationsTaken = {
     return request.type === 'IntentRequest' && request.intent.name === 'some_medications_taken';
   },
   handle(handlerInput){
-    console.log('handling some meds');
-    const attributes = getAttributes(handlerInput);
-    const request = handlerInput.requestEnvelope.request;
+    var processFunc = (attributes) =>{
     
-    if (request.dialogState === 'STARTED' || request.dialogState === 'IN_PROGRESS'){
-      attributes.state.cancelAction = 'abort';
-      attributes.state.confirmUndo = 'false';
-      
-      const attributesManager = handlerInput.attributesManager;
-      attributesManager.setSessionAttributes(attributes);
-      
-      return handlerInput.responseBuilder.addDelegateDirective().getResponse();
-    }
-    else{
-      const medA = request.intent.slots.medication.value;
-      const medB = request.intent.slots.medicationB.value;
-      const medC = request.intent.slots.medicationC.value;
-
-      var speechText = 'Got ' + medA;
-      var cardtext = "I've recorded that you took " + medA;
-      attributes.state.lastMeds = [medA];
-      attributes.data.medstaken.push(medA);
-      if (medB){
+      const request = handlerInput.requestEnvelope.request;
+      // note that no matter what, the first message from Alexa as 'started'.
+      // Then we delegate back. If it is complete, we get an immediate response from Alexa with 'complete'.
+      // This 'complete' comm never shows up in the simmulator!!!!
+      if (request.dialogState === 'STARTED' || request.dialogState === 'IN_PROGRESS'){
+        attributes.state.cancelAction = 'abort';
+        attributes.state.confirmUndo = 'false';
+        
+        const attributesManager = handlerInput.attributesManager;
+        attributesManager.setSessionAttributes(attributes);
+        console.log('delegating for clarity');
+        return handlerInput.responseBuilder.addDelegateDirective().getResponse();
+      }
+      else{
+        const medA = request.intent.slots.medication.value;
+        const medB = request.intent.slots.medicationB.value;
+        const medC = request.intent.slots.medicationC.value;
+  
+        var speechText = 'Got ' + medA;
+        var cardtext = "I've recorded that you took " + medA;
+        attributes.state.lastMeds = [medA];
+        attributes.data.medstaken.push(medA);
+        if (medB){
+          if (medC){
+            speechText += ', ' + medB;
+            cardtext += ', ' + medB;
+          }
+          else{
+            speechText += ' and ' + medB;
+            cardtext += ' and ' + medB;
+          }
+          attributes.data.medstaken.push(medB);
+          attributes.state.lastMeds.push(medB);
+        
+        }
         if (medC){
-          speechText += ', ' + medB;
-          cardtext += ', ' + medB;
+          speechText += ', and ' + medC;
+          cardtext += ', and ' + medC;
+          attributes.data.medstaken.push(medC);
+          attributes.state.lastMeds.push(medC);
         }
-        else{
-          speechText += ' and ' + medB;
-          cardtext += ' and ' + medB;
-        }
-        attributes.data.medstaken.push(medB);
-        attributes.state.lastMeds.push(medB);
-      
+  
+        attributes.state.cancelAction = 'last meds';
+        attributes.state.confirmUndo = 'false';
+        const attributesManager = handlerInput.attributesManager;
+        attributesManager.setSessionAttributes(attributes);
+        cardtext = cardtext + '.';
+        console.log('taking medications');
+        
+        return handlerInput.responseBuilder
+          .speak(speechText)
+          .withSimpleCard('Medications', cardtext)
+          .reprompt(REPROMPT_TO_CONTINUE)
+          .withShouldEndSession(false)
+          .getResponse();
       }
-      if (medC){
-        speechText += ', and ' + medC;
-        cardtext += ', and ' + medC;
-        attributes.data.medstaken.push(medC);
-        attributes.state.lastMeds.push(medC);
-      }
-
-      attributes.state.cancelAction = 'last meds';
-      attributes.state.confirmUndo = 'false';
-      const attributesManager = handlerInput.attributesManager;
-      attributesManager.setSessionAttributes(attributes);
-      cardtext = cardtext + '.';
-      
-      return handlerInput.responseBuilder
-        .speak(speechText)
-        .withSimpleCard('Medications', cardtext)
-        .reprompt(REPROMPT_TO_CONTINUE)
-        .withShouldEndSession(false)
-        .getResponse();
-    }
+    
+    };
+    return applyAttributes(handlerInput, processFunc);
 
   }
 };
@@ -327,12 +379,15 @@ const RestartHandler = {
       && (request.intent.name === 'AMAZON.StartOverIntent');
   },
   handle(handlerInput) {
-    initializeSession(handlerInput);
-    return handlerInput.responseBuilder
-        .speak('The slate is cleared')
-        .withSimpleCard('Restarting','data is cleared')
-        .withShouldEndSession(false)
-        .getResponse();
+    var processFunc = (attributes) =>{
+      return handlerInput.responseBuilder
+          .speak('The slate is cleared')
+          .withSimpleCard('Restarting','data is cleared')
+          .withShouldEndSession(false)
+          .getResponse();
+    };
+    let forceReinitialization = true;
+    return applyAttributes(handlerInput, processFunc, forceReinitialization);
   }
 };
 
@@ -346,8 +401,8 @@ const CancelHandler = {
   },
   handle(handlerInput) {
     console.log('handling cancel');
-    const request = handlerInput.requestEnvelope.request;
-    const attributes = getAttributes(handlerInput);
+    const attributesManager = handlerInput.attributesManager;
+    const attributes = attributesManager.getSessionAttributes();
     if (attributes.state.cancelAction == 'abort'){
       attributes.state.cancelAction == 'none';
       return handlerInput.responseBuilder
@@ -369,15 +424,17 @@ const CancelHandler = {
 
 const YesHandler = {
   canHandle(handlerInput){
+    const attributesManager = handlerInput.attributesManager;
+    const attributes = attributesManager.getSessionAttributes();
     const request = handlerInput.requestEnvelope.request;
-    const attributes = getAttributes(handlerInput);
     return request.type === 'IntentRequest'
       && request.intent.name === 'AMAZON.YesIntent'
       && attributes.state.confirmUndo;
   },
   handle(handlerInput) {
     console.log("undoing last action");
-    const attributes = getAttributes(handlerInput);
+    const attributesManager = handlerInput.attributesManager;
+    const attributes = attributesManager.getSessionAttributes();
     attributes.state.confirmUndo = false;
     
     // PEND perform the undo!!!!!
@@ -389,7 +446,7 @@ const YesHandler = {
       var filtered = attributes.data.medstaken.filter(function(value, index, arr){
         return attributes.state.lastMeds.includes(value);
       });
-      attributes.data.allmedstaken = filtered.slice();
+      attributes.data.medstaken = filtered.slice();
       break;
     case 'sleep':
       attributes.data.sleepduration = 0;
@@ -409,14 +466,16 @@ const YesHandler = {
 const NoHandler = {
   canHandle(handlerInput){
     const request = handlerInput.requestEnvelope.request;
-    const attributes = getAttributes(handlerInput);
+    const attributesManager = handlerInput.attributesManager;
+    const attributes = attributesManager.getSessionAttributes();
     return request.type === 'IntentRequest'
       && request.intent.name === 'AMAZON.NoIntent'
       && attributes.state.confirmUndo === true;
   },
   handle(handlerInput) {
     console.log("NOT undoing last action");
-    const attributes = getAttributes(handlerInput);
+    const attributesManager = handlerInput.attributesManager;
+    const attributes = attributesManager.getSessionAttributes();
     attributes.state.confirmUndo = false;
     
     return handlerInput.responseBuilder
@@ -442,7 +501,24 @@ const HelpIntent = {
       .reprompt(reprompt)
       .withShouldEndSession(false)
       .getResponse();
+  }
+};
+
+const AboutHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+
+    return request.type === 'IntentRequest' && request.intent.name === 'about';
   },
+  handle(handlerInput) {
+    const speechOutput = ABOUT_TEXT;
+    
+    return handlerInput.responseBuilder
+      .speak(speechOutput)
+      .reprompt(REPROMPT_TO_CONTINUE )
+      .withShouldEndSession(false)
+      .getResponse();
+  }
 };
 
 /////////////////////////////
@@ -456,7 +532,8 @@ function newDataCheck(data){
 }
 
 function SendDataAndExit(handlerInput, status){
-  const attributes = getAttributes(handlerInput);
+  const attributesManager = handlerInput.attributesManager;
+  const attributes = attributesManager.getSessionAttributes();
   attributes.state.exitType = status;
   // only take unique drugs
   let uniqueDrugs = [...new Set(attributes.data.medstaken)]; 
@@ -576,6 +653,7 @@ exports.handler = skillBuilder
     ExitHandler, // for graceful exit requests
     SessionEndedRequest, //for abrupt exits
     HelpIntent,
+    AboutHandler,
     FallbackHandler,
     UnhandledIntent,
   )
