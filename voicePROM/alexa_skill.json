@@ -1,7 +1,7 @@
 {
     "interactionModel": {
         "languageModel": {
-            "invocationName": "voice pro",
+            "invocationName": "voice p.r.o",
             "intents": [
                 {
                     "name": "AMAZON.FallbackIntent",
@@ -163,6 +163,18 @@
                 {
                     "name": "AMAZON.NoIntent",
                     "samples": []
+                },
+                {
+                    "name": "about",
+                    "slots": [],
+                    "samples": [
+                        "what is this",
+                        "about",
+                        "tell me about voice p r o",
+                        "tell me about voice pro",
+                        "tell me about this app",
+                        "tell me about this skill"
+                    ]
                 }
             ],
             "types": [

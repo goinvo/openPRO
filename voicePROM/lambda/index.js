@@ -5,14 +5,20 @@
 
 const Alexa = require('ask-sdk');
 const awsSDK = require('aws-sdk');
-const promisify = require('es6-promisify');
+//const {promisify} = require("es6-promisify");
 var https = require('https');
 var uuid = require('uuid');
-
 // Generate a v1 (time-based) id
 //uuid.v1(); // -> '6c84fb90-12c4-11e1-840d-7b25c5ee775a'
 
 const docClient = new awsSDK.DynamoDB.DocumentClient();
+
+// convert callback style functions to promises
+//const dbScan = promisify(docClient.scan, docClient);
+//const dbGet = promisify(docClient.get, docClient);
+//const dbPut = promisify(docClient.put, docClient);
+//const dbDelete = promisify(docClient.delete, docClient);
+
 
 
 const SKILL_NAME = "voice <say-as interpret-as='spell-out'>pro</say-as>";
@@ -79,6 +85,7 @@ function getDefaultAttributes(){
   attributes.user.email = '';
   attributes.user.username = ''; 
   attributes.user.systemuserid = '';
+  attributes.user.newToDB = false;
   
   attributes.state.exitType = 'hard';
   attributes.state.cancelAction = 'exit';
@@ -92,16 +99,41 @@ function getDefaultAttributes(){
   return attributes; 
 }
 
-// returns another promise
+// returns a promise that returns an updated attributes structure, even if there is no entry in the table
 function attributesFromDB(attributes){
   const getUserTableParams = {
     TableName: USER_TABLE,
     Key: {
-      'user_id': attributes.user.username
+      user_id: attributes.user.username
     }
-  }
+  };
+  //console.log(getUserTableParams);
   
-
+  const p2 = docClient.get(getUserTableParams).promise()
+    .then(data => {
+      if (data) console.log(data);
+      if (data && ('user_id' in data.Item)){
+        const item = data.Item;
+        console.log('Get item succeeded:');
+        const quests = item.questionnaires;
+        if (quests){
+          attributes.data.questionnaires = quests.slice();
+        }
+        else{
+          console.log('no questionnaires');
+        }
+      }
+      else{
+        console.log('no data');
+        attributes.user.newToDB = true;  // new user. no biggie.
+      }
+      return attributes;
+    })
+    .catch( error =>{
+      console.log('p2 catch error: ' + error);
+      return attributes;
+    });
+  return p2;
 }
 
 
@@ -113,6 +145,7 @@ function attributesFromDB(attributes){
 // If the user is not linked, create a link request response.
 // If the session is old, simply return processFunction(attributes);
 function applyAttributes(handlerInput, processFunction, forceReinitialization = false){
+  console.log('applying');
   const attributesManager = handlerInput.attributesManager;
   if(handlerInput.requestEnvelope.session.new || forceReinitialization){
     // session is new, check for an access token
@@ -138,15 +171,17 @@ function applyAttributes(handlerInput, processFunction, forceReinitialization = 
       console.log('token: ' + accessToken);
       console.log('user: ' + attributes.user.systemuserid);
       
-      // 2. get the email from authentication server
-      var promise = new Promise((resolve) => {
+      
+      // 2. get the userid and email from authentication server
+      var promise = new Promise((resolve, reject) => {
         applyUserInfoFromToken(accessToken, (userinfo) =>{
           var email = userinfo.email;
           var username = userinfo.username;
           if (!email || email.length==0){
             attributes.user.linked = false;
             console.log('no email found, unlinked');
-            resolve(noaccountreply);
+            reject('no email');
+            //resolve(noaccountreply);
           }
           else {
             console.log(email);
@@ -155,15 +190,22 @@ function applyAttributes(handlerInput, processFunction, forceReinitialization = 
             attributes.user.username = username;
             console.log('email found, linked');
             attributesManager.setSessionAttributes(attributes);
-            resolve(processFunction(attributes));
+            resolve(attributes);
+            //resolve(processFunction(attributes));
           }
         });
       });
       // 3. get additional data from database and chain to promise
-     
-     
-      return promise;
       
+       
+      //return promise.catch(noaccountreply);
+      return promise
+      .then( (result1_attributes) => attributesFromDB(result1_attributes))
+      .then( (result_attributes) => processFunction(result_attributes))
+      .catch( (reason) => {
+        console.log(reason);
+        return noaccountreply;
+      });
     }
   }
   else{
@@ -177,6 +219,7 @@ const LaunchRequest = {
     return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
   },
   handle(handlerInput) {
+    console.log('launching');
     var processFunc = () => {
       const responseBuilder = handlerInput.responseBuilder;
       const speechOutput = WELCOME_MESSAGE;
@@ -538,10 +581,18 @@ function SendDataAndExit(handlerInput, status){
   // only take unique drugs
   let uniqueDrugs = [...new Set(attributes.data.medstaken)]; 
   attributes.data.medstaken = uniqueDrugs.slice();
-  
+
   if (newDataCheck(attributes.data)){
+    
+    if (attributes.user.newToDB){
     /////////////
-    // SEND data here
+    // SEND user data to DB
+    //////////
+      
+    }
+     
+    /////////////
+    // SEND report data to DB
     //////////
     
     return handlerInput.responseBuilder
