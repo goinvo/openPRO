@@ -7,10 +7,7 @@ const Alexa = require('ask-sdk');
 const awsSDK = require('aws-sdk');
 //const {promisify} = require("es6-promisify");
 var https = require('https');
-var uuid = require('uuid');
-// Generate a v1 (time-based) id
-//uuid.v1(); // -> '6c84fb90-12c4-11e1-840d-7b25c5ee775a'
-
+//var uuid = require('uuid');
 const docClient = new awsSDK.DynamoDB.DocumentClient();
 
 // convert callback style functions to promises
@@ -30,7 +27,7 @@ const HELP_TEXT = 'Help text';
 const REPROMPT_TO_CONTINUE = 'anything else?';
 
 const USER_TABLE = 'voicePRO_users';  //hash:'user_id', 'reports', 'email', 'alerts', 'questionnaires'
-const REPORTS_TABLE = 'voicePRO_reports';  //hash:'uuid', 'date', 'user_id', 'content'
+//const REPORTS_TABLE = 'voicePRO_reports';  //hash:'uuid', 'date', 'user_id', 'content'
 
 
 /////////////////////////////
@@ -90,7 +87,8 @@ function getDefaultAttributes(){
   attributes.state.exitType = 'hard';
   attributes.state.cancelAction = 'exit';
   attributes.state.lastMeds = [];
-  attributes.state.confirmUndo = 'false';
+  attributes.state.confirmUndo = false;
+  attributes.state.saved = false;
 
   attributes.data.allmedstaken = false;
   attributes.data.medstaken = [];
@@ -104,15 +102,15 @@ function attributesFromDB(attributes){
   const getUserTableParams = {
     TableName: USER_TABLE,
     Key: {
-      user_id: attributes.user.username
+      'user_id': attributes.user.username
     }
   };
-  //console.log(getUserTableParams);
+  console.log(getUserTableParams);
   
   const p2 = docClient.get(getUserTableParams).promise()
-    .then(data => {
+    .then((data) => {
       if (data) console.log(data);
-      if (data && ('user_id' in data.Item)){
+        if (data && data.Item && 'user_id' in data.Item){
         const item = data.Item;
         console.log('Get item succeeded:');
         const quests = item.questionnaires;
@@ -145,7 +143,6 @@ function attributesFromDB(attributes){
 // If the user is not linked, create a link request response.
 // If the session is old, simply return processFunction(attributes);
 function applyAttributes(handlerInput, processFunction, forceReinitialization = false){
-  console.log('applying');
   const attributesManager = handlerInput.attributesManager;
   if(handlerInput.requestEnvelope.session.new || forceReinitialization){
     // session is new, check for an access token
@@ -252,7 +249,7 @@ const AllMedicationsTaken = {
     var processFunc = (attributes) => {
       attributes.data.allmedstaken = true;
       attributes.state.cancelAction = 'allmeds';
-      attributes.state.confirmUndo = 'false';
+      attributes.state.confirmUndo = false;
   
       const attributesManager = handlerInput.attributesManager;
       attributesManager.setSessionAttributes(attributes);
@@ -301,7 +298,7 @@ const SleepReport = {
         }
         attributes.data.sleepduration = sleep_hours;
         attributes.state.cancelAction = 'sleep';
-        attributes.state.confirmUndo = 'false';
+        attributes.state.confirmUndo = false;
   
         const attributesManager = handlerInput.attributesManager;
         attributesManager.setSessionAttributes(attributes);
@@ -334,7 +331,7 @@ const SomeMedicationsTaken = {
       // This 'complete' comm never shows up in the simmulator!!!!
       if (request.dialogState === 'STARTED' || request.dialogState === 'IN_PROGRESS'){
         attributes.state.cancelAction = 'abort';
-        attributes.state.confirmUndo = 'false';
+        attributes.state.confirmUndo = false;
         
         const attributesManager = handlerInput.attributesManager;
         attributesManager.setSessionAttributes(attributes);
@@ -371,7 +368,7 @@ const SomeMedicationsTaken = {
         }
   
         attributes.state.cancelAction = 'last meds';
-        attributes.state.confirmUndo = 'false';
+        attributes.state.confirmUndo = false;
         const attributesManager = handlerInput.attributesManager;
         attributesManager.setSessionAttributes(attributes);
         cardtext = cardtext + '.';
@@ -448,15 +445,17 @@ const CancelHandler = {
     const attributes = attributesManager.getSessionAttributes();
     if (attributes.state.cancelAction == 'abort'){
       attributes.state.cancelAction == 'none';
-      return handlerInput.responseBuilder
+      attributesManager.setSessionAttributes(attributes);
+        return handlerInput.responseBuilder
         .speak("okay, lets forget that. what else?")
         .withSimpleCard('PENDING')
         .withShouldEndSession(false)
         .getResponse();
     }
     else{
-      attributes.state.confirmUndo = 'true';
-      return handlerInput.responseBuilder
+      attributes.state.confirmUndo = true;
+      attributesManager.setSessionAttributes(attributes);
+        return handlerInput.responseBuilder
         .speak("Would you like to undo that?")
         .withSimpleCard('PENDING')
         .withShouldEndSession(false)
@@ -495,7 +494,8 @@ const YesHandler = {
       attributes.data.sleepduration = 0;
       break;
     }
-    
+    attributesManager.setSessionAttributes(attributes);
+        
     
     return handlerInput.responseBuilder
         .speak("Undone")
@@ -520,7 +520,8 @@ const NoHandler = {
     const attributesManager = handlerInput.attributesManager;
     const attributes = attributesManager.getSessionAttributes();
     attributes.state.confirmUndo = false;
-    
+    attributesManager.setSessionAttributes(attributes);
+        
     return handlerInput.responseBuilder
         .speak("Okay. Well keep it")
         .withShouldEndSession(false)
@@ -575,30 +576,108 @@ function newDataCheck(data){
 }
 
 function SendDataAndExit(handlerInput, status){
+  console.log('sending data');
+  
   const attributesManager = handlerInput.attributesManager;
   const attributes = attributesManager.getSessionAttributes();
   attributes.state.exitType = status;
   // only take unique drugs
   let uniqueDrugs = [...new Set(attributes.data.medstaken)]; 
   attributes.data.medstaken = uniqueDrugs.slice();
-
+        
+  const errorMessage = handlerInput.responseBuilder
+      .speak('There was a problem delivering your data')
+      .withSimpleCard('Uh oh!', 'There was a problem delivering your data')
+      .withShouldEndSession(true)
+      .getResponse();
+  
+  const successMessage = handlerInput.responseBuilder
+      .speak('Data Delivered. Goodbye!')
+      .withSimpleCard('Goodbye!', 'Your data was delivered successfully.')
+      .withShouldEndSession(true)
+      .getResponse();
+  
   if (newDataCheck(attributes.data)){
+    console.log('new data confirmed');
+    // Generate a v1 (time-based) id
+    //const recordid = uuid.v1(); // -> '6c84fb90-12c4-11e1-840d-7b25c5ee775a'
+
+    // for updating the user database
+    const makeUpdatePromise = () =>{
+      console.log('making user db update promise');
+      const content = {
+        'all medication taken': attributes.data.allmedstaken,
+        'medications': attributes.data.medstaken,
+        'sleep hours': attributes.data.sleepduration
+      };
+      var now = new Date();
+      var timestamp = Date.now();
+      var date = now.toString();
+      const sessionData = {
+        'exit type': attributes.state.exitType
+      };
+      const report = {
+        'timestamp': timestamp,
+        'date': date,
+        'content': content,
+        'session': sessionData
+      };
+      
+    
+      const updateTable = {
+        TableName: USER_TABLE,
+        Key:{
+          'user_id': attributes.user.username
+        },
+        UpdateExpression: "SET questionnaires = :q, reports = list_append(reports, :r)",
+        ExpressionAttributeValues:{
+            ":q": attributes.data.questionnaires,
+            ":r": [report]
+        },
+        ReturnValues:"NONE"
+      };
+      return docClient.update(updateTable).promise();
+    };
     
     if (attributes.user.newToDB){
-    /////////////
-    // SEND user data to DB
-    //////////
-      
+      console.log('adding entry to DB');
+      // add new user entry to database, before doing the update
+      const newUserTable = {
+        TableName: USER_TABLE,
+        Item:{
+          'user_id': attributes.user.username,
+          'email': attributes.user.email,
+          'reports': [],
+          'questionnaires': [],
+          'alerts': []
+        }
+      };
+      return docClient.put(newUserTable).promise()
+      .then(makeUpdatePromise())
+      .then( (resp)=> {
+        console.log('add and update successful');
+        attributes.state.saved = true;
+        attributesManager.setSessionAttributes(attributes);
+        return successMessage;} )
+      .catch(
+        error =>{console.log('add and update user entry catch error: ' + error);
+        return errorMessage;
+      });
     }
-     
-    /////////////
-    // SEND report data to DB
-    //////////
+    else{
+      return makeUpdatePromise()
+      .then( (resp)=> {
+        console.log('update successful');
+        attributes.state.saved = true;
+        attributesManager.setSessionAttributes(attributes);
+        return successMessage;} )
+      .catch(
+        error =>{console.log('update user error: ' + error);
+          return errorMessage;
+        }
+      );
+    }
     
-    return handlerInput.responseBuilder
-        .speak('Your new data has been delivered')
-        .withSimpleCard('Bye Bye!', 'Your new data has been delivered')
-        .getResponse();
   }
   else{
     return handlerInput.responseBuilder
@@ -615,7 +694,8 @@ const ExitHandler = {
       && (request.intent.name === 'AMAZON.StopIntent');
   },
   handle(handlerInput) {
-    
+    console.log('exit handler called');
+
     // Mail results here!!!
     return SendDataAndExit(handlerInput, 'graceful');
   },
@@ -627,10 +707,14 @@ const SessionEndedRequest = {
     return handlerInput.requestEnvelope.request.type === 'SessionEndedRequest';
   },
   handle(handlerInput) {
-    SendDataAndExit(handlerInput, 'hard');
-    console.log(`Session ended with reason: ${handlerInput.requestEnvelope.request.reason}`);
-    return handlerInput.responseBuilder
-      .getResponse();
+    console.log('session ended handler called');
+    const attributesManager = handlerInput.attributesManager;
+    const attributes = attributesManager.getSessionAttributes();
+    console.log(attributes);
+    if (!attributes.state.saved){
+      console.log('hard exit. saving in emergency!');
+      return SendDataAndExit(handlerInput, 'hard');
+    }
   },
 };
 
