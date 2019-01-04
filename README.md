@@ -8,8 +8,6 @@ How the PRO fits into the larger connected patient. What it can do!:
 
 This project explores several new directions for the clinical and at-home use of Patient Reported Outcomes. They focus on the patient as the nucleus of the interaction and the benefit, and explore new directions.
 
-![Graphic: The PRO is a key component of the fully connected patient](connected_picture.png)
-
 ## The current environment
 
 PROs are focussed on PROms, or PRO Measures. These are instruments that are heavily vetted and studied (chu, 2014) as accurately collecting targeted data and associating that data with clinically relevant measures. They typically yield a single numeric result that aims to capture the quality of the outcome. PROMs are administered via a paper questionnaires of about 10-15 scale based questions, with electronic counterparts. Recently, there has been work in developing and administering electronic adaptive forms that change and react due to patient responses. 
@@ -51,8 +49,6 @@ PROs are focussed on PROms, or PRO Measures. These are instruments that are heav
     + Provides data for future research
     + Permits patient to report clinically relevant information at the point of pain, when it is most reliable.
     +Promotes accurate record of treatments and outcomes for a given patient.
-
-![Graphic: New Visions for the PRO at home and at the doctors office](new_uses.png)
 
 ## Products
 This repository contains a suite of products. Each begins as a concept. Each directory has a readme that describes the project in more detail.
