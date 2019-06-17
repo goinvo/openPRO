@@ -1,57 +1,23 @@
 # openPRO
-
 ## Introduction
+### What is PRO and why is it important?
+Patient-Reported Outcome (PRO): Any report on the status of a patient's health coming directly from the patient without any interpretation or interference.
 
-A couple definitions
+The Patient-Reported Outcome is the platform for the patient to be heard. Why must we listen?
+Our health system is moving toward focus on quality of care from quantity of care. Quality is measured as a combination of lives saved, readmission, medical outcomes, as well as quality of life measures such as pain and mobility. However, the very words of the patient that define quality in the patient’s interest are too often ignored. We must center our care and attention on the patient’s needs, values, and experiences.
+A curious thing about pain is how easily we forget it after the fact. When, where, how much... these are all important details the doctor wants to know, and we find ourselves struggling to recall, filling in the gaps with maybe- truths. It certainly would be helpful to record pain when it happens, where it happens. At the doctor’s office, that record should already be in the doctor’s hand to be used that much more easily to diagnose and treat the patient.
+Your Patient Reported Outcome is a direct connection between you, the source of critical medical data, and the decisions regarding your care and the future of the health system.
 
-How the PRO fits into the larger connected patient. What it can do!:
+### The PRO enables...
+- **Improved communication** The patient can initiate communication of relevant medical data with the doctor to send outcomes, align priorities, and arrange the care they need.
+- **Less time on data entry and better time with the patient** The patient records her own experiences and pushes it to the health record. Her doctor can then spend more face-to-face time discussing her care, rather than conducting time-consuming interviews and performing data entry.
+- **Improved quality of treatment** PRO tools allow the patient to report clinically relevant information at the point of pain, when it is most reliable, to inform the most appropriate treatments. Over the course of treatment, the PRO promotes accurate recordings of outcomes to advance changes when needed.
+- **Personalized care** The patient is able choose treatments, personalized to their needs, by drawing on the past successes, experiences, and self-reported outcomes of many similar patients who came before them7,8,10
+- **Improved healthcare for all** The patient provides invaluable data on treatment outcomes. The data is accurate, timely, and multi-dimensional. These qualities of data are possible only with many patients’ voices.
 
-This project explores several new directions for the clinical and at-home use of Patient Reported Outcomes. They focus on the patient as the nucleus of the interaction and the benefit, and explore new directions.
-
-## The current environment
-
-PROs are focussed on PROms, or PRO Measures. These are instruments that are heavily vetted and studied (chu, 2014) as accurately collecting targeted data and associating that data with clinically relevant measures. They typically yield a single numeric result that aims to capture the quality of the outcome. PROMs are administered via a paper questionnaires of about 10-15 scale based questions, with electronic counterparts. Recently, there has been work in developing and administering electronic adaptive forms that change and react due to patient responses. 
-
-### What the PROMs have been accomplishing
-+ Clinical trial data. Drug approval. (Marquis 2011, Bottomley 2009)
-+ Screening
-+ Monitoring
-+ Identify effective treatments for a particular patient cohort.
-
-## What we see in the current scene
-### Goals
-+ The Patient Centric PRO
-+ Query population to identify unmet needs in R&D and medical practice (Grossman 2018)
-+ Aggregate treatment outcomes in a patient-centric lens to help future patients make the best decisions for themselves (Hostetter 2018, Greenhalgh 2017, Grossman 2018, CancerLinQ and Mitre)
-+ Query population to align medical practice with the local patient community (Grossman 2018)
-+ Ease and improve the use of existing measures.
-
-### What challenges are blocking these goals?
-+ Integration (Wagle, 2017)
-+ Accessible and annotated libraries (PRO FHIR IG, 2018)
-+ Applicability of patient group
-+ Quick implementation and administration
-
-### What are people doing about it?
-+ Strategic workshops such as FasterCures 2017 workshop. (Grossman 2018)
-+ Portal integration
-+ Promise (Cella 2007; Broderick 2013)
-  Database and administration platform of vetted and studied measures.
-+ Fhir PRO
-
-## We are exploring some new directions
-+ The PRO as a communication tool
-    + Open-ended information gathering
-    + Structured data that is compatible with health records
-+ The PRO as a tool to ease clinician burden
-    + Use to lower the amount of data gathering during appointments
-+ The PRO as tool to complete the patient record
-    + Provides data for future research
-    + Permits patient to report clinically relevant information at the point of pain, when it is most reliable.
-    +Promotes accurate record of treatments and outcomes for a given patient.
 
 ## Products
-This repository contains a suite of products. Each begins as a concept. Each directory has a readme that describes the project in more detail.
+This repository contains a start on several projects seeking to overcome these challenges and push PROs to realize their potential. Most are still in the conception stage. The benefits of being open source are three-fold. First, the extended community provides verification, support, and feedback, improving the quality and relevance of the process and product. Second, the mature product will provide services as well as an open source repository of resources, designs, and code for other developers and teams to utilize. Third, the open process has a positive impact on medicine by building community and interest in improving the state of PROs.
 
 - **Voice PROM**: Smart speaker application that provides a Voice enabled method to submit responses to a PROM platform.
 - **Symptom Identifier**: “Patient-owned” application that captures a subjective nebulous idea of symptoms and creates a structured collection of data that can be conveniently and consistently shared with clinicians in person, via email/text, and via the Medical Record.
