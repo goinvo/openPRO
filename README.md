@@ -18,11 +18,12 @@ Your Patient Reported Outcome is a direct connection between you, the source of 
 
 ## Products
 This repository contains a start on several projects seeking to overcome these challenges and push PROs to realize their potential. Most are still in the conception stage. The benefits of being open source are three-fold. First, the extended community provides verification, support, and feedback, improving the quality and relevance of the process and product. Second, the mature product will provide services as well as an open source repository of resources, designs, and code for other developers and teams to utilize. Third, the open process has a positive impact on medicine by building community and interest in improving the state of PROs.
+![openPRO offers concepts for many workflows and features connecting patients and clinicians](graphical_assets/main-graphic.jpg)
 
 - **Voice PROM**: Smart speaker application that provides a Voice enabled method to submit responses to a PROM platform.
 - **Symptom Identifier**: “Patient-owned” application that captures a subjective nebulous idea of symptoms and creates a structured collection of data that can be conveniently and consistently shared with clinicians in person, via email/text, and via the Medical Record.
 - **ROS reporter**: Application that captures a Review of Systems for a patient, leading up to an clinician encounter. Can be requested by Clinician either in office, or at home before appointment, or in waiting room. 
-- **openPRO Platform**: Platform for clinicians and patients to administer and communicate PROMs, ad hoc. 
+- **openPRO Platform**: Platform for clinicians and patients to administer and communicate PROMs, ad hoc.
 - **PROM repo**: Provide an indexed, annotated, repository of PRO measures.
 
 ## References
